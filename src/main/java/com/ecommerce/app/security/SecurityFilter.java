@@ -43,7 +43,8 @@ public class SecurityFilter {
                                 "/api/auth/register",
                                 "/api/products/**",
                                 "/api/cart/**",
-                                "/api/checkout/guest"
+                                "/api/checkout/guest",
+                                "/api/payment/**"
                         ).permitAll()
                         // Everything else requires authentication
                         .anyRequest().authenticated()

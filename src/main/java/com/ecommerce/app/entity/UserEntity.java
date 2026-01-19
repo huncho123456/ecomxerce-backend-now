@@ -17,8 +17,23 @@ public class UserEntity {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long id;
 
-    @Column(name = "fullname", nullable = false)
-    private String fullName;
+    @Column(name = "firstname", nullable = false)
+    private String firstName;
+
+    @Column(name = "lastname", nullable = false)
+    private String lastName;
+
+    @Column(name = "country", nullable = false)
+    private String country;
+
+    @Column(name = "street_address", nullable = false)
+    private String streetAddress;
+
+    @Column(name = "city", nullable = false)
+    private String city;
+
+    @Column(name = "state", nullable = false)
+    private String state;
 
     @Column(name = "email", unique = true, nullable = false)
     private String email;
