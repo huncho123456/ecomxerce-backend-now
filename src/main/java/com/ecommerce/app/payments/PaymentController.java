@@ -25,7 +25,6 @@ public class PaymentController {
 
     @GetMapping("/verify/{reference}")
     public ResponseEntity<PaystackVerifyResponse> verify(@PathVariable String reference) {
-        log.info("verify" + reference);
         PaystackVerifyResponse response = paystackService.verifyPayment(reference);
 
         if (response != null && response.isStatus()) {

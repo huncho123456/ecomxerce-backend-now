@@ -27,38 +27,7 @@ public class UserService {
     private final ModelMapper mapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
-    private final CartRepository cartRepository;
 
-    @Transactional
-    public void migrateGuestCartToUser(UUID guestId, UUID userId) {
-        // 1. Find the guest cart
-        Optional<CartEntity> guestCartOpt = cartRepository.findById(guestId);
-
-        if (guestCartOpt.isPresent()) {
-            CartEntity guestCart = guestCartOpt.get();
-
-            // 2. Create or find the user's permanent cart
-            CartEntity userCart = cartRepository.findById(userId)
-                    .orElseGet(() -> {
-                        CartEntity newCart = new CartEntity();
-                        newCart.setGuest_id(userId); // Now acting as user_id
-                        return cartRepository.save(newCart);
-                    });
-
-            // 3. Move items from guest cart to user cart
-            for (CartItemEntity item : guestCart.getItems()) {
-                item.setCart(userCart);
-                userCart.getItems().add(item);
-            }
-
-            // 4. Save the user cart (cascades to items) and delete the guest cart
-            cartRepository.save(userCart);
-
-            // Clear items from guest cart first to avoid constraint violations during delete
-            guestCart.getItems().clear();
-            cartRepository.delete(guestCart);
-        }
-    }
 
     public Response<UserDto> register(UserEntity user) {
         if (repo.existsByEmail(user.getEmail())) {

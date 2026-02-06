@@ -1,12 +1,12 @@
 package com.ecommerce.app.service;
 
-import com.ecommerce.app.entity.CartEntity;
-import com.ecommerce.app.entity.CartItemEntity;
-import com.ecommerce.app.entity.GuestEntity;
-import com.ecommerce.app.entity.ProductEntity;
+import com.ecommerce.app.entity.*;
 import com.ecommerce.app.repo.CartRepository;
 import com.ecommerce.app.repo.GuestRepository;
 import com.ecommerce.app.repo.ProductRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -19,30 +19,61 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class cartService {
-
-    private final CartRepository cartRepo;
     private final ProductRepository productRepo;
+    private final CartRepository cartRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    @Transactional
+    public void migrateGuestCartToUser(UUID guestId, Long userId) {
+        CartEntity guestCart = cartRepository.findByGuestId(guestId);
+        if (guestCart == null) return;
+
+        // Check if user already has a cart
+        CartEntity userCart = cartRepository.findByUserId(userId);
+        UserEntity userRef = entityManager.getReference(UserEntity.class, userId);
+
+        if (userCart == null) {
+            // Promote guest cart to user
+            guestCart.setUser(userRef);
+            guestCart.setGuestId(null);
+            cartRepository.save(guestCart);
+        } else {
+            // Merge items from guest cart into existing user cart
+            for (CartItemEntity item : new ArrayList<>(guestCart.getItems())) {
+                Optional<CartItemEntity> existing = userCart.getItems().stream()
+                        .filter(i -> i.getProduct().getId().equals(item.getProduct().getId()))
+                        .findFirst();
+
+                if (existing.isPresent()) {
+                    existing.get().setQuantity(existing.get().getQuantity() + item.getQuantity());
+                } else {
+                    item.setCart(userCart);
+                    userCart.getItems().add(item);
+                }
+            }
+            cartRepository.delete(guestCart);
+            cartRepository.save(userCart);
+        }
+    }
 
     // 🛒 Add product to guest's cart
+    @Transactional
     public CartEntity addToCart(UUID guestId, Long productId, int qty) {
-        if (guestId == null) {
-            throw new RuntimeException("guestId is required");
-        }
-
         ProductEntity product = productRepo.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        // Get existing cart or create a new one
-        CartEntity cart = cartRepo.findById(guestId)
-                .orElseGet(() -> {
-                    CartEntity newCart = new CartEntity();
-                    newCart.setGuest_id(guestId);
-                    newCart.setItems(new ArrayList<>());
-                    newCart.setUpdatedAt(LocalDateTime.now());
-                    return newCart;
-                });
+        // Find cart by guestId
+        CartEntity cart = cartRepository.findByGuestId(guestId);
+        if (cart == null) {
+            cart = new CartEntity();
+            cart.setGuestId(guestId);
+            cart.setItems(new ArrayList<>());
+            cart.setCreatedAt(LocalDateTime.now());
+        }
 
-        // Check if the product is already in the cart
+        // Add or update cart item
         Optional<CartItemEntity> existingItem = cart.getItems().stream()
                 .filter(item -> item.getProduct().getId().equals(productId))
                 .findFirst();
@@ -57,24 +88,27 @@ public class cartService {
             cart.getItems().add(newItem);
         }
 
-        cart.setUpdatedAt(LocalDateTime.now());
-        return cartRepo.save(cart);
+        cart.setCreatedAt(LocalDateTime.now());
+        cart = cartRepository.save(cart);
+
+        return cart;
     }
+
 
     // 🧾 Get cart by guest ID
     public CartEntity getCart(UUID guestId) {
-        return cartRepo.findById(guestId)
+        return cartRepository.findById(guestId)
                 .orElseGet(() -> {
                     CartEntity newCart = new CartEntity();
-                    newCart.setGuest_id(guestId);
+                    newCart.setGuestId(guestId);
                     newCart.setItems(new ArrayList<>());
-                    newCart.setUpdatedAt(LocalDateTime.now());
-                    return cartRepo.save(newCart);
+                    newCart.setCreatedAt(LocalDateTime.now());
+                    return cartRepository.save(newCart);
                 });
     }
 
     // 🗑️ Clear cart
     public void clearCart(UUID guestId) {
-        cartRepo.deleteById(guestId);
+        cartRepository.deleteById(guestId);
     }
 }
